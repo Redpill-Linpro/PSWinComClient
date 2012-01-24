@@ -165,7 +165,7 @@ class SOAPClient(object):
         res = self.webservice.getfile().read()
         res_soapenv = ET.fromstring(res)
         results = res_soapenv.findall('*//{http://pswin.com/SOAP/Submit/SMS}ReturnValue')
-        _tmp = []
+        result_list = []
         for item in results:
             for i in item.iter():
                 if "Code" in i.tag:
@@ -175,7 +175,7 @@ class SOAPClient(object):
                 if "Description" in i.tag:
                     _description = i.text
 
-            _tmp.append((_code,_reference, _description))
+            result_list.append((_code,_reference, _description))
         return result_list
 
 
