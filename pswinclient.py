@@ -106,15 +106,29 @@ class EnvelopeBuilder(object):
         self._xml = []
 
     def buildxml(self, kwargs):
+        """Legacy API"""
+        self.xml = kwargs
+    
+    @property
+    def xml(self):
+        try:
+            return "".join(self.tpl.format(SMSMessage="\n".join(self._xml).encode('utf-8')))
+        finally:
+            del self.xml
+            
+    @xml.setter
+    def xml(self, kwargs):
         _msg = self.smsmessage.format(**kwargs)
         if self.multi:
             _msg = self.messagecontainer.format(SMSMessage=_msg).encode('utf-8')
-        self._xml.append(_msg)
+            self._xml.append(_msg)
+        else:
+            self._xml = [_msg]
 
-    @property
+    @xml.deleter
     def xml(self):
-        return "".join(self.tpl.format(SMSMessage="\n".join(self._xml).encode('utf-8')))
-
+        self._xml = []
+        
 
 class SOAPClient(object):
     """Sets up SOAP communication"""
@@ -186,10 +200,10 @@ if __name__ == "__main__":
     sms_message = EnvelopeBuilder(SendSingleMessage, "<PSWinCom-username>", "<PSWinCom-Password>")
     sms_message.buildxml(dict(reciever="47<phone number>",
                               sender="<Your ref>",
-                              message="<Your message string>",
+                              message=u"<Your message string>",
                               reciept="false"))
 
     soap_client = SOAPClient('sms.pswin.com','/SOAP/SMS.asmx', sms_message.xml)
     statuscode, envelope_response = soap_client.send()
-
+    #
     print statuscode, envelope_response
