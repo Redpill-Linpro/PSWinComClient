@@ -26,7 +26,7 @@ __author__ = "Rune Hansen"
 __copyright__ = "Copyright 2012, Redpill Linpro AS"
 __credits__ = ["Torbjorn Maro","https://github.com/tormaroe/pswinpy","pswin.com"]
 __license__ = "GPL3"
-__version__ = "1.0.0"
+__version__ = "1.0.2"
 __maintainer__ = "Rune Hansen"
 __email__ = "rune.hansen@redpill-linpro.com"
 __status__ = "Production"
@@ -102,20 +102,24 @@ class EnvelopeBuilder(object):
                                    password=password,
                                    SMSMessage="{SMSMessage}").encode('utf-8')
 
-        self.multi = multi
+        self._multi = multi
         self._xml = []
+
+    @property
+    def multi(self):
+        return self._multi
 
     def buildxml(self, kwargs):
         """Legacy API"""
         self.xml = kwargs
-    
+
     @property
     def xml(self):
         try:
             return "".join(self.tpl.format(SMSMessage="\n".join(self._xml).encode('utf-8')))
         finally:
             del self.xml
-            
+
     @xml.setter
     def xml(self, kwargs):
         _msg = self.smsmessage.format(**kwargs)
@@ -128,7 +132,6 @@ class EnvelopeBuilder(object):
     @xml.deleter
     def xml(self):
         self._xml = []
-        
 
 class SOAPClient(object):
     """Sets up SOAP communication"""
@@ -193,17 +196,112 @@ class SOAPClient(object):
         return result_list
 
 
-if __name__ == "__main__":
-    ##
-    # Usage
-    ##
-    sms_message = EnvelopeBuilder(SendSingleMessage, "<PSWinCom-username>", "<PSWinCom-Password>")
-    sms_message.buildxml(dict(reciever="47<phone number>",
-                              sender="<Your ref>",
-                              message=u"<Your message string>",
-                              reciept="false"))
+def main(args):
+    """One wonders"""
+    sms_message = EnvelopeBuilder(SendSingleMessage, args.user,
+                                  args.password)
+    sms_message.buildxml(dict(reciever=args.number,
+                              sender=args.reference_name,
+                              message=u"{}".format(args.message),
+                              reciept=str(args.reciept).lower()))
 
-    soap_client = SOAPClient('sms.pswin.com','/SOAP/SMS.asmx', sms_message.xml)
+    if args.debug:
+        from xml.etree import ElementTree as et
+        doc  = et.fromstring(sms_message.xml)
+        et.dump(doc)
+        return(0,0)
+    else:
+        soap_client = SOAPClient('sms.pswin.com','/SOAP/SMS.asmx', sms_message.xml)
+        statuscode, envelope_response = soap_client.send()
+        return(statuscode, envelope_response)
+
+if __name__ == "__main__":
+    """ API Usage:
+    >>> sms_message = EnvelopeBuilder(SendSingleMessage,
+                                      '<PSWinCom-username>',
+                                      '<PSWinCom-Password>')
+    >>> sms_message.buildxml(dict(reciever='47<phone number>'
+                                  sender='<Your ref>',
+                                  message=u'<Your message string>',
+                                  reciept='false'))
+    >>> soap_client = SOAPClient('sms.pswin.com','/SOAP/SMS.asmx',
+                                  sms_message.xml)
     statuscode, envelope_response = soap_client.send()
-    #
-    print statuscode, envelope_response
+    """
+    import argparse
+
+    class LenAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if len(values) >= 140:
+                raise parser.error("Your message text is too long")
+            setattr(namespace, self.dest, values)
+
+    parser = argparse.ArgumentParser(prog="pswinclient",
+                                     description="PSWinCom SMS CLI © Redpill Linpro AS 2012",
+                                     epilog='''The CLI allows you to send a
+                                     single SMS message to a single recipient.
+                                     This does of course require a
+                                     valid PSWinCom account.
+                                     NB: Be aware that the
+                                     PSWinCom SOAP API will return 200 OK no
+                                     matter what you do. If you want to be
+                                     sure that your message has been delivered
+                                     you need to set "reciept" to True
+                                     and fire up the deliveryreport server.
+                                     The address of the deliveryreport server
+                                     needs to be added through your PSWinCom
+                                     administration web console.''')
+
+    parser.add_argument("-u","--user",
+                           dest="user",
+                           required=True,
+                           help="PSWinCom username")
+
+    parser.add_argument("-p","--password",
+                           dest="password",
+                           required=True,
+                           help="PSWinCom password")
+
+    parser.add_argument("-r", "--recipient",
+                           type=int,
+                           dest="number",
+                           required=True,
+                           help="""Mobile phone number formatted as xx<number>
+                           , where xx is the country number and <number> is
+                           between 7 and 11""")
+
+    parser.add_argument("-m","--message",
+                           type=str,
+                           action=LenAction,
+                           dest="message",
+                           required=True,
+                           help="The message to send (max 140 characters)")
+
+    parser.add_argument("-n", "--name",
+                           dest="reference_name",
+                           default=parser.prog+"/Redpill Linpro AS 2012",
+                           help="Optional name used as your reference")
+
+    parser.add_argument("--reciept",
+                           dest="reciept",
+                           action="store_true",
+                           help="Send a reciept request to PSWinCom")
+
+    parser.add_argument("--debug",
+                           dest="debug",
+                           action="store_true",
+                           help="""Dump generated message to console without
+                           sending""")
+
+    args = parser.parse_args()
+
+    status, response = main(args)
+
+    print"""
+---------------------------------------
+{0!s:<20} {1}
+---------------------------------------
+{2!s:<20} {3}
+---------------------------------------
+---------------------------------------
+    """.format("Status", "Reference", status, response)
