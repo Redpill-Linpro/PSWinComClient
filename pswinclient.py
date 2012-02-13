@@ -136,7 +136,7 @@ class EnvelopeBuilder(object):
 class SOAPClient(object):
     """Sets up SOAP communication"""
 
-    def __init__(self, host, path, msg, agent="RL-PythonPSWinComSOAP", msg_type='single'):
+    def __init__(self, host, path, msg, agent="RL-PythonPSWinComSOAP"):
         """Initialize communication
 
         keyword arguments:
@@ -144,13 +144,12 @@ class SOAPClient(object):
         path -- /path/to/SOAP/handler
         msg -- <soapxx:Envelope>..</soap>
         agent -- Useragent string
-        msg_type -- single|multi soap enveople messages
         """
         self.host = host
         self.path = path
-        self.msg = msg
+        self.msg = msg.xml
         self.agent = agent
-        self.msg_type = msg_type
+        self.msg_type = 'single' if not msg.multi else 'multi'
         self.__set_headers()
 
     def __set_headers(self):
@@ -211,7 +210,7 @@ def main(args):
         et.dump(doc)
         return(0,0)
     else:
-        soap_client = SOAPClient('sms.pswin.com','/SOAP/SMS.asmx', sms_message.xml)
+        soap_client = SOAPClient('sms.pswin.com','/SOAP/SMS.asmx', sms_message)
         statuscode, envelope_response = soap_client.send()
         return(statuscode, envelope_response)
 
