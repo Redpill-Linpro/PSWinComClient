@@ -224,14 +224,14 @@ if __name__ == "__main__":
                                   message=u'<Your message string>',
                                   reciept='false'))
     >>> soap_client = SOAPClient('sms.pswin.com','/SOAP/SMS.asmx',
-                                  sms_message.xml)
+                                  sms_message)
     statuscode, envelope_response = soap_client.send()
     """
     import argparse
 
     class LenAction(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
-            if len(values) >= 140:
+            if len(values) > 140:
                 raise parser.error("Your message text is too long")
             setattr(namespace, self.dest, values)
 
